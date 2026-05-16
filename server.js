@@ -1,18 +1,8 @@
-/**
- * ╔══════════════════════════════════════╗
- * ║   Vōx — WebRTC Signaling Server     ║
- * ║   Run: node server.js               ║
- * ║   Requires: npm install ws          ║
- * ╚══════════════════════════════════════╝
- */
-
 const { WebSocketServer } = require('ws');
 const http  = require('http');
 const fs    = require('fs');
 const path  = require('path');
 
-// Railway (and most cloud hosts) inject PORT via environment variable.
-// Fall back to 3000 for local development.
 const PORT = process.env.PORT || 3000;
 
 // ── HTTP: serve index.html ──────────────────────────────
@@ -25,14 +15,10 @@ const httpServer = http.createServer((req, res) => {
   });
 });
 
-// ── WebSocket Signaling ─────────────────────────────────
+// 🔥 IMPORTANT: attach WS to same server
 const wss = new WebSocketServer({ server: httpServer });
 
-/**
- * rooms: Map<roomId, Map<peerId, { ws, name }>>
- */
 const rooms = new Map();
-
 let peerCounter = 0;
 
 wss.on('connection', (ws) => {
@@ -56,6 +42,8 @@ wss.on('connection', (ws) => {
   ws.on('error', (err) => log(`[!] ${ws.peerId} error: ${err.message}`));
 });
 
+// (BAKI TERA CODE SAME — koi change nahi needed)
+
 function handleMessage(ws, msg) {
   switch (msg.type) {
 
@@ -71,21 +59,18 @@ function handleMessage(ws, msg) {
         return;
       }
 
-      // Leave old room if any
       if (ws.roomId) handleLeave(ws);
 
       ws.roomId  = room;
       ws.peerName = name || `User ${peers.size + 1}`;
       peers.set(ws.peerId, { ws, name: ws.peerName });
 
-      // Tell joiner who is already in the room
       const others = [...peers.values()]
         .filter(p => p.ws.peerId !== ws.peerId)
         .map(p => ({ id: p.ws.peerId, name: p.name }));
 
       safeSend(ws, { type: 'joined', peerId: ws.peerId, room, peers: others });
 
-      // Notify existing peers
       broadcast(room, ws, { type: 'peer-joined', peerId: ws.peerId, name: ws.peerName });
 
       log(`[Room ${room}] ${ws.peerName} joined — ${peers.size}/2`);
@@ -95,7 +80,6 @@ function handleMessage(ws, msg) {
     case 'offer':
     case 'answer':
     case 'ice-candidate': {
-      // Relay to target peer or broadcast to room
       if (msg.to) {
         const peer = findPeer(msg.to);
         if (peer) safeSend(peer, { ...msg, from: ws.peerId });
@@ -180,8 +164,9 @@ function log(str) {
   console.log(`[${t}] ${str}`);
 }
 
-httpServer.listen(PORT, () => {
+// 🔥🔥 FINAL FIX HERE
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔══════════════════════════════════════╗');
-  console.log(`║  🎥  Vōx running → http://localhost:${PORT}  ║`);
+  console.log(`║  🎥 Vōx running → PORT ${PORT} (Railway Ready) ║`);
   console.log('╚══════════════════════════════════════╝\n');
 });
